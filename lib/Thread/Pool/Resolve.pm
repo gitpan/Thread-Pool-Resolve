@@ -5,7 +5,7 @@ package Thread::Pool::Resolve;
 # Make sure we do everything by the book from now on
 
 our @ISA = qw(Thread::Pool);
-our $VERSION = '0.06';
+our $VERSION = '0.07';
 use strict;
 
 # Make sure we only load stuff when we actually need it
@@ -126,11 +126,28 @@ sub new {
 # Set the "do" subroutine
 # Set the initial number of workers if none specified yet
 # Set flag for pre/post monitor only
-# Create the subclassed Thread::Pool object with specific settings and return it
 
     $self->{'do'} = \&_resolve;
     $self->{'workers'} ||= 10;
     $self->{'pre_post_monitor_only'} = 1;
+
+# Create local copy of subref for pre-actions
+# Set pre-action to this subroutine with closure
+#  Load POSIX if not loaded yet (unfortunately needed)
+#  Set the signal the difficult (but more reliable) way
+#  Perform the original pre action if any available
+
+    my $pre = $self->{'pre'};
+    $self->{'pre'} = sub {
+        require POSIX; # good thing that POSIX uses AutoLoader also
+        POSIX::sigaction( "POSIX::SIGALRM"->(), # weird way of getting constant
+	 POSIX::SigAction->new( sub {die "timed out\n"} ) );
+        goto &$pre if $pre;
+    };
+        
+
+# Create the subclassed Thread::Pool object with specific settings and return it
+
     $class->SUPER::new( $self,@_ );
 } #new
 
@@ -462,17 +479,22 @@ sub _resolvr {
 
 # Initialize domain to be returned
 # Make sure we can catch the alarm
-# Set alarm handler to handle timeout
-# Set timer for timeout to be applied if one given
-# Attempt to obtain the domain
-# Reset the timer if one was given
+#  If there is a timeout set
+#   Set timer for timeout to be applied if one given
+#   Attempt to obtain the domain
+#   Reset the timer if one was given
+#  Else (no timeout)
+#   Attempt to obtain the domain
 
     my $domain;
     eval {
-     local $SIG{ALRM} = sub { die "timed out\n" };
-     alarm( $TIMEOUT ) if $TIMEOUT ;
-     $domain = gethostbyaddr( pack( 'C4',split(/\./,shift)),2 );
-     alarm( 0 ) if $TIMEOUT;
+     if ($TIMEOUT) {
+         alarm( $TIMEOUT );
+         $domain = gethostbyaddr( pack( 'C4',split(/\./,shift)),2 );
+         alarm( 0 );
+     } else {
+         $domain = gethostbyaddr( pack( 'C4',split(/\./,shift)),2 );
+     }
     };
 
 # Die now with unanticipated error if not anticipated

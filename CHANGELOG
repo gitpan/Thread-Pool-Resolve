@@ -1,3 +1,12 @@
+0.07	22 September 2002
+	Added use of POSIX::sigaction for setting the signal handler rather
+	than just setting %SIG: the latter seems to only be processed _after_
+	gethostbyaddr() timed out, which sort of defeated the purpose.  So
+	this should really make the timeout value specified, work.
+
+	Made the standard resolver a bit smarter about the case with a
+	specific timeout value and without.
+
 0.06	1 September 2002
 	Increased dependency on Thread::Pool, so it will use the latest and
 	best.  No further changes to the code.
