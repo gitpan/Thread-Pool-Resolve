@@ -1,0 +1,3 @@
+Find a way to not have to use Storable for information transport.
+
+Check out the deadlocking issues, probably in Thread::Pool.
