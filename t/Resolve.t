@@ -13,6 +13,8 @@ BEGIN { use_ok('IO::File') }
 BEGIN { use_ok('Storable',qw(store retrieve)) }
 BEGIN { use_ok('Thread::Queue') }
 
+$SIG{ALRM} = sub{}; # prime signal handler to prevent warnings
+
 can_ok( 'Thread::Pool::Resolve',qw(
  add
  autoshutdown
@@ -91,6 +93,7 @@ ok( close( $out2 ),			'close resolved log file' );
 ok( open( my $script,'>',$filter ),	'create script file' );
 print $script <<EOD;
 \@INC = qw(@INC);
+\$SIG{ALRM} = sub {};
 
 use Storable qw(retrieve);
 my \$ip2domain = retrieve( '$ip2domain' );

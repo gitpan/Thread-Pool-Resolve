@@ -1,3 +1,11 @@
+0.05	28 August 2002
+	Added code to "new" to handle problem with timouts in threads.  If
+	it sees that it cannot fix the problem, it dies.  Else it will fix it
+	and output a warning.
+
+	Added BUGS section to the pod to explain the problem with timeouts of
+	the default resolver.
+
 0.04	27 August 2002
 	Added documentation and test-suite for checkpoint functionality, which
 	is basically inherited from the latest Thread::Pool.  Increased

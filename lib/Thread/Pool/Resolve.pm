@@ -5,7 +5,7 @@ package Thread::Pool::Resolve;
 # Make sure we do everything by the book from now on
 
 our @ISA : unique = qw(Thread::Pool);
-our $VERSION : unique = '0.04';
+our $VERSION : unique = '0.05';
 use strict;
 
 # Make sure we can have a pool of threads
@@ -60,6 +60,22 @@ sub new {
     my $class = shift;
     my $self = shift || {};
     bless $self,$class;
+
+# If we're in a suspect version and we don't have a signal yet
+#  If we're not in the main thread (and not primed)
+#   Die now if we can't reliable use alarm()
+#  Else (we're in the main thread and not primed)
+#   Tell the world we're doing something naughty
+#   Set ALRM signal to something to get alarm() to work inside threads
+
+    if ($^V ge v5.8.0 and !$SIG{ALRM}) {
+        if (threads->tid) {
+            die "Cannot reliably use signals in threads\n" unless $SIG{ALRM};
+        } else {
+            warn "Priming \$SIG{ALRM} to get signals to work inside threads\n";
+            $SIG{ALRM} = sub {};
+        }
+    }
 
 # Die now if illegal fields specified
 # Make sure we have code references for everything specified
@@ -1054,6 +1070,36 @@ that roughly conforms to what is considered to be a valid IP number
 (basically a sequence of 4 numbers between 0 and 255, concatenated with
 periods).  It can be used to create test log files (as is done in the
 test-suite of this module).
+
+=head1 BUGS
+
+Release 5.8.0 of Perl has a bug related to the usage of signals with threads.
+Basically, signals within threads are only handled correctly if the main
+thread has "activated" the signal handler before the thread that is to
+receive a signal, is started.
+
+Since the L<timeout> function of the default L<resolver> uses the alarm()
+function (which uses signals) to time out any DNS request that just takes
+too long, the B<ALRM> signal must be assigned before any threads that use
+signals, are started.  The L<new> class method tries to be smart about
+this and attempts to fix this.  However, it cannot fix this if it's not
+called from the main thread.  So, in that case, it will die with the message:
+
+ Cannot reliably use signals in threads
+
+And when it B<is> able to fix this, it will output a warning:
+
+ Priming $SIG{ALRM} to get signals to work inside threads
+
+If you are calling method L<new> from a thread other than the main thread,
+or you do not want to be alarmed (pun intended) by the warning, then you
+B<must> assign the B<ALRM> signal in your main thread yourself.  This
+can be as simple as:
+
+ $SIG{ALRM} = sub {}; # workaround for 5.8.0 thread signal breakage
+
+It can be placed anywhere in your main program, but B<before> you call method
+L<new>.
 
 =head1 EXAMPLES
 
