@@ -5,7 +5,7 @@ package Thread::Pool::Resolve;
 # Make sure we do everything by the book from now on
 
 our @ISA : unique = qw(Thread::Pool);
-our $VERSION : unique = '0.03';
+our $VERSION : unique = '0.04';
 use strict;
 
 # Make sure we can have a pool of threads
@@ -552,6 +552,8 @@ This method can be called without an instantiated Thread::Pool::Resolve object.
    post => sub { print "stop monitoring yourself\n" },   # open/close
 
    status => \%status,                    # monitor progress resolver
+   checkpoint => sub { print "checkpointing\n" },
+   frequency => 1000,
 
    resolved => \%resolved,                # default: empty hash
    resolver => \&myownresolver,           # default: gethostbyaddr()
@@ -731,6 +733,36 @@ numerical thread id (tid) of the process.
 
 No status will be set if no hash reference is specified (which is the
 default).
+
+=item checkpoint
+
+ checkpoint => 'checkpointing',	         # name or code reference
+
+The "checkpoint" field specifies the subroutine to be executed everytime a
+checkpoint should be made by the monitoring routine (e.g. for saving or
+updating status).  It must be specified as either the name of a subroutine
+or as a reference to a (anonymous) subroutine.
+
+It only makes sense to specify a checkpoint routine if there is also a
+monitoring routine specified.  No checkpointing will occur by default if a
+monitoring routine B<is> specified.  The frequency of checkpointing can
+be specified with the "frequency" field.
+
+The specified subroutine should not expect any parameters to be passed.  Any
+values returned by the checkpointing routine, will be lost.
+
+=item frequency
+
+ frequency => 100,                             # default = 1000
+
+The "frequency" field specifies the number of jobs that should have been
+monitored before the "checkpoint" routine is called.  If a checkpoint routine
+is specified but no frequency field is specified, then a frequency of B<1000>
+will be assumed.
+
+This field has no meaning if no checkpoint routine is specified with the
+"checkpoint" field.  The default frequency can be changed with the frequency
+method, which is inherited from Thread::Pool.
 
 =item resolved
 
@@ -992,6 +1024,7 @@ about these methods.
 
  add            add one or more worker threads
  autoshutdown   set behaviour when object is destroyed
+ frequency      (set default) checkpointing frequency
  maxjobs        set maximum number of lines waiting to be handled
  minjobs        set minimum number of lines waiting to be handled
  remove         remove one or more worker threads

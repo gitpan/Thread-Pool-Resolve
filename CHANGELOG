@@ -1,3 +1,8 @@
+0.04	27 August 2002
+	Added documentation and test-suite for checkpoint functionality, which
+	is basically inherited from the latest Thread::Pool.  Increased
+	dependency on Thread::Pool in Makefile.PL.
+
 0.03	16 August 2002
 	Fixed problem in test-suite which tested for resolving from different
 	threads.

@@ -6,7 +6,7 @@ BEGIN {				# Magic Perl CORE pragma
 }
 
 use strict;
-use Test::More tests => 13 + (2*37);
+use Test::More tests => 13 + (2*38);
 
 BEGIN { use_ok('Thread::Pool::Resolve') }
 BEGIN { use_ok('IO::File') }
@@ -51,6 +51,7 @@ my $ipref = Thread::Pool::Resolve->can( 'rand_ip' );
 my $resolve;
 my @shared : shared;
 my %status : shared;
+my $checkpointed : shared;
 
 for (my $i = 1; $i <= 100; $i++) {
   my ($ip,$domain) = (&$ipref,&$domainref);
@@ -69,17 +70,21 @@ ok( store( \%ip2domain,$ip2domain ),	'save ip2domain hash with Storable' );
 
 ok( open( my $out1,'>',$unresolved ),	'create unresolved log file' );
 ok( open( my $out2,'>',$resolved ),	'create resolved log file' );
-for (my $i = 1; $i <= 10; $i++) {
+my $lines;
+for ($lines = 1; $lines <= 1000; $lines++) {
   my $ip = $ip[int(rand(@ip))];
   my $domain = $ip2domain{$ip} || $ip;
   my $hits = 1+int(rand(10));
   foreach (1..$hits) {
-    print $out1 "$ip $i\n";
-    print $out2 "$domain $i\n";
-    $i++;
+    print $out1 "$ip $lines\n";
+    print $out2 "$domain $lines\n";
+    $lines++;
   }
-  $i--;
+  $lines--;
 }
+$lines--;
+my $checkpoints = int($lines/10);
+
 ok( close( $out1 ),			'close unresolved log file' );
 ok( close( $out2 ),			'close resolved log file' );
 
@@ -110,10 +115,13 @@ foreach my $optimize (qw(cpu memory)) {
   ok( check( $resolved,$filtered ),	'check result of script filter' );
 
   diag( "Test resolving from a file ($optimize)" );
+  $checkpointed = 0;
   $resolve = Thread::Pool::Resolve->new(
    {
     status => \%status,
     optimize => $optimize,
+    checkpoint => sub {$checkpointed++},
+    frequency => 10,
     resolver => 'gethostbyaddr',
    },
    $filtered
@@ -122,6 +130,7 @@ foreach my $optimize (qw(cpu memory)) {
   ok( $resolve->read( $unresolved ),	'read from file' );
   $resolve->shutdown;
   ok( check( $resolved,$filtered ),	'check result of file' );
+  cmp_ok( $checkpointed,'==',$checkpoints,'check checkpoints' );
 
   diag( "Test resolving from an open()ed handle ($optimize)" );
   ok( open( my $log,'<',$unresolved ),	'open GLOB log file' );
