@@ -1,3 +1,10 @@
+0.08	30 September 2002
+	Use "load.pm" instead of AutoLoader.  Increased dependency on
+        Thread::Pool to 0.28, which also use "load.pm" now.
+
+	Removed "our" from $VERSION and @ISA, should shave off some bytes in
+        memory usage, as found from testing with Benchmark::Thread::Size.
+
 0.07	22 September 2002
 	Added use of POSIX::sigaction for setting the signal handler rather
 	than just setting %SIG: the latter seems to only be processed _after_
