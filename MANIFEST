@@ -8,3 +8,4 @@ lib/Thread/Pool/Resolve.pm
 t/Resolve01.t
 t/Resolve02.t
 t/resolveit
+META.yml                                Module meta-data (added by MakeMaker)

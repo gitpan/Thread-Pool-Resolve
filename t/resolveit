@@ -62,7 +62,7 @@ ok( close( $out2 ),			'close resolved log file' );
 
 ok( open( my $script,'>',$filter ),	'create script file' );
 print $script <<EOD;
-\@INC = qw(@INC);
+BEGIN {\@INC = qw(@INC)};
 \$SIG{ALRM} = sub {};
 
 use Storable qw(retrieve);

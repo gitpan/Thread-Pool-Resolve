@@ -1,3 +1,9 @@
+0.09	11 August 2003
+	Cleaned up Makefile.PL and updated test-suite and copyright.  Fixed
+	problem in test-suite if there was no Thread::Pool::Resolve installed
+	yet (filter would not search in lib).  Increased dependency on
+	Thread::Pool to 0.29.
+
 0.08	30 September 2002
 	Use "load.pm" instead of AutoLoader.  Increased dependency on
         Thread::Pool to 0.28, which also use "load.pm" now.
