@@ -4,9 +4,13 @@ package Thread::Pool::Resolve;
 # Make sure we have version info for this module
 # Make sure we do everything by the book from now on
 
-our @ISA : unique = qw(Thread::Pool);
-our $VERSION : unique = '0.05';
+our @ISA = qw(Thread::Pool);
+our $VERSION = '0.06';
 use strict;
+
+# Make sure we only load stuff when we actually need it
+
+use AutoLoader 'AUTOLOAD';
 
 # Make sure we can have a pool of threads
 
@@ -14,21 +18,21 @@ use Thread::Pool ();
 
 # Default timeout value to apply to default resolver
 
-my $TIMEOUT = 60; # seconds
+our $TIMEOUT = 60; # seconds
 
 # Thread local reference to the shared resolved hash
 # Thread local reference to the resolver routine
 # Thread local reference to the shared status hash
 # Thread local output handle
 
-my $resolved;
-my $resolver;
-my $status;
-my $output;
+our $resolved;
+our $resolver;
+our $status;
+our $output;
 
 # Initialize the hash with module -> read method name translation
 
-our %read_method : unique = (
+our %read_method = (
  'IO::Handle'		=> 'getline',
  'Thread::Conveyor'	=> 'take',
  'Thread::Queue'	=> 'dequeue',
@@ -36,7 +40,7 @@ our %read_method : unique = (
 
 # Initialize the list of letters for random domains
 
-our @letter : unique = split( '','abcdefghijklmnopqrstuvwxyz0123456789-' );
+our @letter = split( '','abcdefghijklmnopqrstuvwxyz0123456789-' );
  
 # Satisfy -require-
 
@@ -116,7 +120,7 @@ sub new {
 
     $resolved = $self->{'resolved'} ||= {};
     threads::shared::share( %$resolved );
-    $resolver = $self->{'resolver'} ||= \&_resolver;
+    $resolver = $self->{'resolver'} ||= \&_resolvr;
     $status = $self->{'status'};
 
 # Set the "do" subroutine
@@ -129,6 +133,16 @@ sub new {
     $self->{'pre_post_monitor_only'} = 1;
     $class->SUPER::new( $self,@_ );
 } #new
+
+#---------------------------------------------------------------------------
+
+# AutoLoader takes over from here
+
+__END__
+
+#---------------------------------------------------------------------------
+
+# Class methods
 
 #---------------------------------------------------------------------------
 #  IN: 1 class or instantiated object
@@ -284,7 +298,7 @@ sub read {
 #  IN: 1 instantiated object
 #      2 one line to be resolved
 
-*line = \&Thread::Pool::job;
+sub line { goto &Thread::Pool::job } #line
 
 #---------------------------------------------------------------------------
 #  IN: 1 instantiated object
@@ -444,7 +458,7 @@ sub _resolve {
 #  IN: 1 IP-number to resolve
 # OUT: 1 domain name (undef if none available)
 
-sub _resolver {
+sub _resolvr {
 
 # Initialize domain to be returned
 # Make sure we can catch the alarm
@@ -466,7 +480,7 @@ sub _resolver {
 
     die $@ if $@ and $@ ne "timed out\n";
     $domain;
-} #_resolver
+} #_resolvr
 
 #---------------------------------------------------------------------------
 #  IN: 1 file to open (default: STDOUT)
@@ -511,8 +525,6 @@ sub _word {
 } #_word
 
 #---------------------------------------------------------------------------
-
-__END__
 
 =head1 NAME
 

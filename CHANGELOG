@@ -1,3 +1,11 @@
+0.06	1 September 2002
+	Increased dependency on Thread::Pool, so it will use the latest and
+	best.  No further changes to the code.
+
+	Split test-suite in two files, so that any potential memory problems
+	cause by "cpu" optimization will not influence the test-suite using
+	the "memory" optimization.
+
 0.05	28 August 2002
 	Added code to "new" to handle problem with timouts in threads.  If
 	it sees that it cannot fix the problem, it dies.  Else it will fix it
