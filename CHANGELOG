@@ -1,3 +1,8 @@
+0.10	28 December 2003
+	Added automatic required modules update using Devel::Required.
+
+	Added dependency on load.pm, it was missing!
+
 0.09	11 August 2003
 	Cleaned up Makefile.PL and updated test-suite and copyright.  Fixed
 	problem in test-suite if there was no Thread::Pool::Resolve installed

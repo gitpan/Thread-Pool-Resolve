@@ -4,7 +4,7 @@ package Thread::Pool::Resolve;
 # Make sure we inherit from Thread::Pool
 # Make sure we do everything by the book from now on
 
-$VERSION = '0.09';
+$VERSION = '0.10';
 @ISA = qw(Thread::Pool);
 use strict;
 
@@ -547,6 +547,8 @@ sub _word {
 } #_word
 
 #---------------------------------------------------------------------------
+
+__END__
 
 =head1 NAME
 
@@ -1104,6 +1106,11 @@ that roughly conforms to what is considered to be a valid IP number
 (basically a sequence of 4 numbers between 0 and 255, concatenated with
 periods).  It can be used to create test log files (as is done in the
 test-suite of this module).
+
+=head1 REQUIRED MODULES
+
+ load (any)
+ Thread::Pool (0.29)
 
 =head1 BUGS
 
