@@ -5,10 +5,10 @@ package Thread::Pool::Resolve;
 # Make sure we do everything by the book from now on
 
 our @ISA : unique = qw(Thread::Pool);
-our $VERSION : unique = '0.01';
+our $VERSION : unique = '0.02';
 use strict;
 
-# Make sure we have belts
+# Make sure we can have a pool of threads
 
 use Thread::Pool ();
 
@@ -28,6 +28,10 @@ our %read_method : unique = (
  'Thread::Queue'	=> 'dequeue',
 );
 
+# Initialize the list of letters for random domains
+
+our @letter : unique = split( '','abcdefghijklmnopqrstuvwxyz0123456789-' );
+ 
 # Satisfy -require-
 
 1;
@@ -113,6 +117,34 @@ sub resolved { ref($_[0]) ? $_[0]->{'resolved'} : $resolved } #resolved
 # OUT: 1 reference to resolver routine
 
 sub resolver { ref($_[0]) ? $_[0]->{'resolver'} : $resolver } #resolver
+
+#---------------------------------------------------------------------------
+#  IN: 1 class (ignored)
+# OUT: 1 a random domain
+
+sub rand_domain {
+
+# Start the domain with a random word
+# Calculate a random number of words (at least 2)
+# For all of the words that need to be added
+#  Add another random word with a period in front of it
+# Return the result
+
+    my $domain = _word();
+    my $words = 2+int(rand(4));
+    foreach (1..$words) {
+        $domain .= ('.'._word());
+    }
+    $domain;
+} #rand_domain
+
+#---------------------------------------------------------------------------
+#  IN: 1 class (ignored)
+# OUT: 1 a random IP number
+
+sub rand_ip {
+  int(rand(256)).'.'.int(rand(256)).'.'.int(rand(256)).'.'.int(rand(256));
+} #rand_ip
 
 #---------------------------------------------------------------------------
 
@@ -340,6 +372,25 @@ sub _open {
 #  IN: 1 line to monitor
 
 sub _monitor { print $output $_[0] } #_monitor
+
+#---------------------------------------------------------------------------
+# OUT: 1 a random word
+
+sub _word {
+
+# Initialize by taking a random letter a-z
+# For a random number of times
+#  Add a random character from the whole range
+# Finally, add a random letter from a-z again
+# Return the result
+
+    my $word = $letter[int(rand(26))];
+    foreach (1..int(rand(5))) {
+        $word .= $letter[int(rand(@letter))];
+    }
+    $word .= $letter[int(rand(26))];
+    $word;
+} #_word
 
 #---------------------------------------------------------------------------
 
@@ -755,6 +806,29 @@ about these methods.
  shutdown       shutdown the resolving process
  todo           number of IP numbers left to resolve (approximate)
  workers        set number of worker threads
+
+=head1 DEBUG METHODS
+
+The following methods are for debugging purposes only.
+
+=head2 rand_domain
+
+ $domain = Thread::Pool::Resolve->rand_domain;
+
+The "rand_domain" class method returns a random domain name.  It is a name
+that roughly conforms to what is considered to be a valid domain name.  It
+can be used in a L<resolver> routine if you want to quickly test your
+log resolving application.
+
+=head2 rand_ip
+
+ $ip = Thread::Pool::Resolve->rand_ip;
+
+The "rand_ip" class method returns a random IP number.  It is an IP number
+that roughly conforms to what is considered to be a valid IP number
+(basically a sequence of 4 numbers between 0 and 255, concatenated with
+periods).  It can be used to create test log files (as is done in the
+test-suite of this module).
 
 =head1 EXAMPLES
 

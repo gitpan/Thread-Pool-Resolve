@@ -21,6 +21,8 @@ can_ok( 'Thread::Pool::Resolve',qw(
  maxjobs
  minjobs
  new
+ rand_domain
+ rand_ip
  read
  remove
  resolved
@@ -39,20 +41,22 @@ my $ip2domain = 'ip2domain';
 
 diag( "Creating test log files" );
 
-my @letter = split( '','abcdefghijklmnopqrstuvwxyz0123456789-' );
 my @ip;
 my %ip2domain;
 my %domain2ip;
 
+my $domainref = Thread::Pool::Resolve->can( 'rand_domain' );
+my $ipref = Thread::Pool::Resolve->can( 'rand_ip' );
+
 for (my $i = 1; $i <= 100; $i++) {
-  my ($ip,$domain) = (ip(),domain());
+  my ($ip,$domain) = (&$ipref,&$domainref);
   push( @ip,$ip );
   $ip2domain{$ip} = $domain;
   $domain2ip{$domain} = $ip;
 }
 
 for (my $i = 1; $i <= 30; $i++) {
-  my $ip = ip();
+  my $ip = &$ipref;
   push( @ip,$ip );
   $ip2domain{$ip} = '';
 }
@@ -87,7 +91,7 @@ my \$ip2domain = retrieve( '$ip2domain' );
 sub gethostbyaddr { sleep( rand(2) ); \$ip2domain->{\$_[0]} }
 
 use Thread::Pool::Resolve;
-Thread::Pool::Resolve->new( {resolver => 'gethostbyaddr'} )->read;
+my \$r = Thread::Pool::Resolve->new( {resolver => 'gethostbyaddr'} )->read;
 EOD
 ok( close( $script ),			'close script file' );
 
@@ -236,33 +240,4 @@ sub check {
   }
   my $line = readline( $handle2 );
   return !defined($line);
-}
-
-# random IP-number
-
-sub ip {
-  int(rand(256)).'.'.int(rand(256)).'.'.int(rand(256)).'.'.int(rand(256));
-}
-
-# random word
-
-sub word {
-  my $word = $letter[int(rand(26))];
-  foreach (1..int(rand(5))) {
-    $word .= $letter[int(rand(@letter))];
-  }
-  $word .= $letter[int(rand(26))];
-  $word;
-}
-
-# random domain
-
-sub domain {
-
-  my $domain = word();
-  my $words = 2+int(rand(6));
-  foreach (1..$words) {
-    $domain .= ('.'.word());
-  }
-  $domain;
 }

@@ -1,2 +1,11 @@
+0.02	1 August 2002
+	Raised dependency to Thread::Pool 0.22.
+
+	30 July 2002
+	Added debugging class methods "rand_domain" and "rand_ip".  Adapted
+	test-suite to use these rather than its own version of them.
+
+	Some documentation nits.
+
 0.01	26 July 2002
 	First version of Thread::Pool::Resolve.
