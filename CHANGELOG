@@ -1,3 +1,29 @@
+0.03	16 August 2002
+	Fixed problem in test-suite which tested for resolving from different
+	threads.
+
+	Added support for reporting status of the resolving process.  Added
+	"status" field to "new" method.  Adapted default resolver and monitor
+	to set the status according to the process.
+
+	Added timeout feature to the default resolver.  Timeout value can
+	be changed with the "timeout" method.
+
+	14 August 2002
+	Adapted test-suite to use select() rather than sleep(), which seems
+	to halt _all_ threads, at least under UNIX.
+
+	13 August 2002
+	Fixed potentially large foreach keys to while each loop.
+
+	7 August 2002
+	Added optimization parameter documentation (inherited from
+	Thread::Pool)
+
+	Added optimization setting to test-suite.
+
+	Raised dependency to Thread::Pool 0.23.
+
 0.02	1 August 2002
 	Raised dependency to Thread::Pool 0.22.
 

@@ -1,3 +1,6 @@
+undeffing a resolve object does not work, why?
+
 Find a way to not have to use Storable for information transport.
 
-Check out the deadlocking issues, probably in Thread::Pool.
+Add monitoring capability, e.g. by running either read() or monitoring
+routine in a different thread.

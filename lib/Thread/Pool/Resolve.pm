@@ -5,19 +5,25 @@ package Thread::Pool::Resolve;
 # Make sure we do everything by the book from now on
 
 our @ISA : unique = qw(Thread::Pool);
-our $VERSION : unique = '0.02';
+our $VERSION : unique = '0.03';
 use strict;
 
 # Make sure we can have a pool of threads
 
 use Thread::Pool ();
 
+# Default timeout value to apply to default resolver
+
+my $TIMEOUT = 60; # seconds
+
 # Thread local reference to the shared resolved hash
 # Thread local reference to the resolver routine
+# Thread local reference to the shared status hash
 # Thread local output handle
 
 my $resolved;
 my $resolver;
+my $status;
 my $output;
 
 # Initialize the hash with module -> read method name translation
@@ -70,9 +76,9 @@ sub new {
     if (exists( $self->{'open'} )) {
         $self->_die( "when using 'open'",qw(pre post monitor) );
         $self->{'pre'} = sub { $output = $self->{'open'}->( @_ ) };
-	$self->{'post'} = sub { $self->{'close'}->( @_ ); close( $output ) }
+        $self->{'post'} = sub { $self->{'close'}->( @_ ); close( $output ) }
          if exists( $self->{'close'} );
-	$self->{'monitor'} = \&_monitor;
+        $self->{'monitor'} = \&_monitor;
 
 #  Elseif we have our own monitoring routine
 #   Die now if a "close" field was specified
@@ -84,16 +90,18 @@ sub new {
 #  Just set the standard "open" and "monitor" routine to handle writing
 
     } else {
-	@$self{qw(pre monitor)} = (\&_open,\&_monitor);
+        @$self{qw(pre monitor)} = (\&_open,\&_monitor);
     }
 
 # Make sure we have a hash reference for the resolved information
 # Make sure it is shared (in case it isn't already)
 # Set the resolver routine if none specified yet
+# Set the thread local status reference
 
     $resolved = $self->{'resolved'} ||= {};
     threads::shared::share( %$resolved );
-    $resolver = $self->{'resolver'} ||= \&_resolver; # $resolver will be CLONEd
+    $resolver = $self->{'resolver'} ||= \&_resolver;
+    $status = $self->{'status'};
 
 # Set the "do" subroutine
 # Set the initial number of workers if none specified yet
@@ -117,6 +125,26 @@ sub resolved { ref($_[0]) ? $_[0]->{'resolved'} : $resolved } #resolved
 # OUT: 1 reference to resolver routine
 
 sub resolver { ref($_[0]) ? $_[0]->{'resolver'} : $resolver } #resolver
+
+#---------------------------------------------------------------------------
+#  IN: 1 class or instantiated object
+# OUT: 1 reference to status hash
+
+sub status { ref($_[0]) ? $_[0]->{'status'} : $status } #status
+
+#---------------------------------------------------------------------------
+#  IN: 1 class or instantiated object
+#      2 new timeout value for default resolver
+# OUT: 1 current timeout value for default resolver
+
+sub timeout {
+
+# Set new timeout value if one given
+# Return current timeout value
+
+    $TIMEOUT = $_[1] if @_ > 1;
+    $TIMEOUT;
+} #timeout
 
 #---------------------------------------------------------------------------
 #  IN: 1 class (ignored)
@@ -297,49 +325,101 @@ sub _resolve {
     return $line unless $line =~ s#^(\d+\.\d+\.\d+\.\d+)##;
     my $ip = $1;
 
-# Obtain thread local reference to the resolved hash if we don't have one
+# Set local reference for message setting if we should
+# Set status message if status should be set
+
+    my $mess = $status ? \$status->{threads->tid} : '';
+    $$mess = "About to resolve $ip" if $mess;
+
 # Make sure we're the only one to access the resolved hash now
 # If there is already information for this IP number
-#  Return what is there with the line if it was resolved already
+#  If we're not waiting for the result
+#   If we should add a message
+#    Set appropriate message
+#   Return domain with the rest of the line
 
-    $resolved ||= Thread::Pool::Resolve->self->{'resolved'};
     {lock( %$resolved );
      if (exists( $resolved->{$ip} )) {
-         return ($resolved->{$ip} || $ip).$line unless ref( $resolved->{$ip} );
+         unless (ref( $resolved->{$ip} )) {
+             if ($mess) {
+                 $$mess = $resolved->{$ip} ?
+                  "Found $resolved->{$ip} for $ip in resolved hash" :
+                  "$ip could not be resolved";
+             }
+             return ($resolved->{$ip} || $ip).$line;
+         }
 
+#  Set status is status should be set
 #  Set the rest of the line in the todo hash, keyed to jobid
 #  Set the flag that this result should not be set in the result hash
 #  And return without anything (thread will continue with next job)
 
+	 $$mess = "Queueing $ip to be resolved by other thread" if $mess;
          $resolved->{$ip}->{Thread::Pool->jobid} = $line;
          Thread::Pool->dont_set_result;
          return;
 
 # Else (first time this IP-number is encountered)
+#  Set status if status should be set
 #  Create an empty shared hash with the rest of the line keyed to the jobid
 #  Save a reference to the hash in the todo hash as info for this IP number
 
      } else {
+         $$mess = "Initializing queue for resolving $ip" if $mess;
          my %hash : shared;
          $resolved->{$ip} = \%hash;
      }
     } #%$resolved
 
+# If we should set status
+#  Set status with appropriate info
+
+    if ($mess) {
+        $$mess = $TIMEOUT ?
+         "Resolving $ip with timeout of $TIMEOUT seconds" :
+         "Resolving $ip without specific timeout";
+    }
+
 # Do the actual name resolving (this may take quite some time)
-# Obtain local copy of the Thread::Pool object
-# Obtain local copy of the todo hash
+# If we should set status
+#  Set status with appropriate info
 
     my $domain = $resolver->( $ip ) || $ip;
+    if ($mess) {
+        $$mess = $domain ?
+         "Resolved $ip to $domain" :
+         "Could not resolve $ip";
+    }
+
+# Obtain local copy of the Thread::Pool object
+# Obtain local copy of the todo hash
+# Make sure we're the only one accessing the resolved hash (rest of this sub)
+
     my $pool = Thread::Pool->self;
     my $todo = $resolved->{$ip};
+    lock( %$resolved );
 
-# Make sure we're the only one accessing the resolved hash (rest of this sub)
-# Set the results for all the lines with this IP-number
+# Set status if appropriate
+# For all of the lines with this IP-number
+#  Set the result for this line
+
+    $$mess = "Processing queue for resolving of $ip" if $mess;
+    while (my ($key,$value) = each( %{$todo} )) {
+        $pool->set_result( $key,$domain.$todo->{$key} );
+    }
+
+# If status should be set
+#  Set appropriate status
+
+    if ($mess) {
+        $$mess = $domain eq $ip ?
+         "Finished resolving $ip: no result" :
+         "Finished resolving $ip: found $domain";
+    }
+
 # Remove todo hash and replace by domain (or blank string)
 # Return the result
 
-    lock( %$resolved );
-    $pool->set_result( $_,$domain.$todo->{$_} ) foreach keys %{$todo};
     $resolved->{$ip} = $domain eq $ip ? undef : $domain;
     $domain.$line;
 } #_resolve
@@ -348,7 +428,29 @@ sub _resolve {
 #  IN: 1 IP-number to resolve
 # OUT: 1 domain name (undef if none available)
 
-sub _resolver { gethostbyaddr( pack( 'C4',split(/\./,shift)),2 ) } #_resolver
+sub _resolver {
+
+# Initialize domain to be returned
+# Make sure we can catch the alarm
+# Set alarm handler to handle timeout
+# Set timer for timeout to be applied if one given
+# Attempt to obtain the domain
+# Reset the timer if one was given
+
+    my $domain;
+    eval {
+     local $SIG{ALRM} = sub { die "timed out\n" };
+     alarm( $TIMEOUT ) if $TIMEOUT ;
+     $domain = gethostbyaddr( pack( 'C4',split(/\./,shift)),2 );
+     alarm( 0 ) if $TIMEOUT;
+    };
+
+# Die now with unanticipated error if not anticipated
+# Return whatever was (not) returned
+
+    die $@ if $@ and $@ ne "timed out\n";
+    $domain;
+} #_resolver
 
 #---------------------------------------------------------------------------
 #  IN: 1 file to open (default: STDOUT)
@@ -403,7 +505,10 @@ Thread::Pool::Resolve - resolve logs asynchronously
 =head1 SYNOPSIS
 
  use Thread::Pool::Resolve;
+ Thread::Pool::Resolve->timeout( 60 ); # only for default resolver
+ 
  $resolve = Thread::Pool::Resolve->new( {field => setting}, parameters );
+
  $resolve->read( | file | handle | socket | belt );
  $resolve->line( single_log_line );
 
@@ -445,6 +550,8 @@ This method can be called without an instantiated Thread::Pool::Resolve object.
    pre => sub { print "start monitoring yourself\n" },   # alternative
    monitor => sub { print "monitor yourself\n" },        # for
    post => sub { print "stop monitoring yourself\n" },   # open/close
+
+   status => \%status,                    # monitor progress resolver
 
    resolved => \%resolved,                # default: empty hash
    resolver => \&myownresolver,           # default: gethostbyaddr()
@@ -512,6 +619,17 @@ with a "post" routine.
 These are all the possible fields that you may specify with the L<new> method.
 
 =over 2
+
+=item optimize
+
+ optimize => 'cpu', # default: 'memory'
+
+The "optimize" field specifies which implementation of the belt will be
+selected.  Currently there are two choices: 'cpu' and 'memory'.  By default,
+the "memory" optimization will be selected if no specific optmization is
+specified.
+
+You can call the class method L<optimize> to change the default optimization.
 
 =item open
 
@@ -601,6 +719,18 @@ The specified subroutine should expect the following parameters to be passed:
  1..N  any additional parameters that were passed with the call to L<new>.
 
 The "post" routine executes in the same thread as the "monitor" routine.
+
+=item status
+
+ status => \%status,
+
+The "status" field specifies a reference to a B<shared> hash that will be
+filled with the status messages of the resolving process.  A one line status
+message will be set by the thread doing the resolving process, keyed to the
+numerical thread id (tid) of the process.
+
+No status will be set if no hash reference is specified (which is the
+default).
 
 =item resolved
 
@@ -693,6 +823,51 @@ during the lifetime of the object.
 
 =back
 
+=head2 optimize
+
+ Thread::Pool::Resolve->optimize( 'cpu' );
+
+ $optimize = Thread::Pool::Resolve->optimize;
+
+The "optimize" class method allows you to specify the default optimization
+type that will be used if no "optimize" field has been explicitely specified
+with a call to L<new>.  It returns the current default type of optimization.
+
+Currently two types of optimization can be selected:
+
+=over 2
+
+=item memory
+
+Attempt to use as little memory as possible.  Currently, this is achieved by
+starting a seperate thread which hosts an unshared array.  This uses the
+"Thread::Conveyor::Thread" sub-class.
+
+=item cpu
+
+Attempt to use as little CPU as possible.  Currently, this is achieved by
+using a shared array (using the "Thread::Conveyor::Array" sub-class),
+encapsulated in a hash reference if throttling is activated (then also using
+the "Thread::Conveyor::Throttled" sub-class).
+
+=back
+
+=head2 timeout
+
+ Thread::Pool::Resolve->timeout( 120 ); # default: 60
+
+ Thread::Pool::Resolve->timeout( 0 );   # de-activate timeout checks
+
+ $timeout = Thread::Pool::Resolve;
+
+The "timeout" class method returns the current timout setting (in seconds)
+that will be used by the default L<resolver>.  It can also be used to change
+the timeout setting used by the default resolver.  A value of B<0> can be
+used to disable timeout checking.
+
+The timeout feature makes use of alarm(), which may cause problems on some
+operating system and/or in conjunction with sleep().
+
 =head1 OBJECT METHODS
 
 These methods can be called on instantiated Thread::Pool::Resolve objects.
@@ -768,6 +943,15 @@ incarnations can then specify the "resolved" field to continue resolving
 using the IP number to domain name translation information from previous
 sessions.
 
+=head2 status
+
+ $status = $resolve->status;
+
+The "status" method returns a reference to the shared hash that contains
+the status information.  It is the same as what was specified with the
+L<new> method and the "status" field.  It can be used to access the status
+information mechanism in a custom monitoring routine.
+
 =head1 INSIDE JOB METHODS
 
 These methods can be called inside the "open", "close", "pre", "post" and
@@ -791,6 +975,14 @@ performing the actual resolving of IP numbers to domain name.  It either
 is the same as what was specified with the L<new> method and the "resolver"
 field, or it is a reference to the default resolver routine provided by
 this module itself.
+
+=head2 status
+
+ $status = Thread::Pool::Resolve->status;
+
+The "status" method returns a reference to the hash that is used to keep
+status.  It is the same as what was specified with the L<new> method and
+the "status" field.
 
 =head1 INHERITED METHODS
 

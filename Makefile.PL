@@ -9,6 +9,6 @@ WriteMakefile (
   ABSTRACT	=> 'resolve logs asynchronously') : (),
  VERSION_FROM	=> 'lib/Thread/Pool/Resolve.pm',
  PREREQ_PM	=> {
-                    'Thread::Pool' => '0.22',
+                    'Thread::Pool' => '0.23',
                    },
 );
